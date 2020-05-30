@@ -1,0 +1,206 @@
+---
+
+nginx_version: "1.18.0"
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Used in:
+#   * templates/nginx.conf
+# ----------------------------------------------------------------------------------------------------------------------
+# Syntax:   error_log file [level];
+# Configures logging. Several logs can be specified on the same level. If on the main configuration level writing a log
+# to a file is not explicitly defined, the default file will be used. The first parameter defines a file that will store
+# the log. The special value stderr selects the standard error file. Logging to syslog can be configured by specifying
+# the 'syslog:' prefix. Logging to a cyclic memory buffer can be configured by specifying the 'memory:' prefix and
+# buffer size, and is generally used for debugging. The second parameter determines the level of logging, and can be one
+# of the following: debug, info, notice, warn, error, crit, alert, or emerg. Log levels above are listed in the order of
+# increasing severity. Setting a certain log level will cause all messages of the specified and more severe log levels
+# to be logged. For example, the default level error will cause error, crit, alert, and emerg messages to be logged. If
+# this parameter is omitted then error is used.
+nginx_config_global_error_log: "/var/log/nginx/error.log warn"
+
+# Syntax:   worker_processes number | auto;
+# Defines the number of worker processes. The optimal value depends on many factors including (but not limited to) the
+# number of CPU cores, the number of hard disk drives that store data, and load pattern. When one is in doubt, setting
+# it to the number of available CPU cores would be a good start (the value "auto" will try to autodetect it).
+nginx_config_global_worker_processes: auto
+# Changes the limit on the maximum number of open files (RLIMIT_NOFILE) for worker processes. Used to increase the limit
+# without restarting the main process.
+nginx_config_global_worker_rlimit_nofile: 4096
+
+# Example extra main options, used within the main nginx's context:
+#   nginx_config_global_extra_conf_options: |
+#     env VARIABLE;
+nginx_config_global_extra_conf_options: ""
+
+#################
+# Basic Settings
+##
+# Syntax:   limit_conn_zone key zone=name:size;
+# Sets parameters for a shared memory zone that will keep states for various keys. In particular, the state includes
+# the current number of connections. The key can contain text, variables, and their combination. Requests with an
+# empty key value are not accounted. See http://nginx.org/en/docs/http/ngx_http_limit_conn_module.html
+nginx_config_http_basic_limit_conn_zones:
+  - "$binary_remote_addr zone=perip:10m"
+  - "$server_name zone=perserver:10m"
+# Syntax:   limit_conn zone number;
+# Sets the shared memory zone and the maximum allowed number of connections for a given key value. When this limit
+# is exceeded, the server will return the 503 (Service Temporarily Unavailable) error in reply to a request.
+nginx_config_http_basic_limit_conns:
+  - "perip 100"
+  - "perserver 8192"
+
+# Enables or disables the use of sendfile().
+nginx_config_http_basic_sendfile: "on"
+# Enables or disables the use of the TCP_NOPUSH socket option on FreeBSD or the TCP_CORK socket option on Linux. The
+# options are enabled only when sendfile is used. Enabling the option allows:
+#   * sending the response header and the beginning of a file in one packet, on Linux and FreeBSD 4.*;
+#   * sending a file in full packets.
+nginx_config_http_basic_tcp_nopush: "on"
+# Enables or disables the use of the TCP_NODELAY option. The option is enabled only when a connection is
+# transitioned into the keep-alive state.
+nginx_config_http_basic_tcp_nodelay: "on"
+
+# Syntax:   keepalive_timeout timeout [header_timeout];
+# The first parameter sets a timeout during which a keep-alive client connection will stay open on the server side.
+# The zero value disables keep-alive client connections. The optional second parameter sets a value in the
+# "Keep-Alive: timeout=time" response header field. Two parameters may differ. The "Keep-Alive: timeout=time" header
+# field is recognized by Mozilla and Konqueror. MSIE closes keep-alive connections by itself in about 60 seconds.
+nginx_config_http_basic_keepalive_timeout: "60s"
+
+# Sets a timeout for transmitting a response to the client. The timeout is set only between two successive write
+# operations, not for the transmission of the whole response. If the client does not receive anything within this time,
+# the connection is closed.
+nginx_config_http_basic_send_timeout: "60s"
+
+# Defines a timeout for reading client request header. If a client does not transmit the entire header within this time,
+# the 408 (Request Time-out) error is returned to the client.
+nginx_config_http_basic_client_header_timeout: "60s"
+
+# Defines a timeout for reading client request body. The timeout is set only for a period between two successive read
+# operations, not for the transmission of the whole request body. If a client does not transmit anything within this
+# time, the 408 (Request Time-out) error is returned to the client.
+nginx_config_http_basic_client_body_timeout: "60s"
+
+# Sets the maximum allowed size of the client request body, specified in the "Content-Length" request header field.
+# If the size in a request exceeds the configured value, the 413 (Request Entity Too Large) error is returned to the
+# client. Please be aware that browsers cannot correctly display this error. Setting size to 0 disables checking of
+# client request body size.
+nginx_config_http_basic_client_max_body_size: "8192k"
+
+##############
+# SSL Settings
+##
+nginx_ssl_dhparam_size: 2048
+
+##################
+# Logging Settings
+##
+nginx_config_http_log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for"'
+#####################
+# Additional Settings
+##
+# Example extra http options, printed inside the main server config (http - context):
+#    nginx_extra_http_options: |
+#      proxy_buffering    off;
+#      proxy_set_header   X-Real-IP $remote_addr;
+#      proxy_set_header   X-Scheme $scheme;
+#      proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+#      proxy_set_header   Host $http_host;
+nginx_config_http_extra_options: ""
+
+# The upstream module is the link between client and target server(s) in Nginx's configuration. Upstream is used for
+# proxying requests to other servers. All requests for / get distributed between any of the servers listed.
+
+####################
+# Upstreams Settings
+##
+# - name: myapp1
+# "zone_size" PARAMETER EXPLANATION:
+# Health-monitored upstream groups need shared memory zone. For example, if the configuration of a group is not shared,
+# each worker process maintains its own counter for failed attempts to pass a request to a server (see the 'max_fails'
+# parameter). In this case, each request gets to only one worker process. When the worker process that is selected to
+# process a request fails to transmit the request to a server, other worker processes don’t know anything about it.
+# While some worker process can consider a server unavailable, others may still send requests to this server.
+# The 'least_conn' load balancing method might not work as expected without the zone directive, at least on small loads.
+# Therefore 'zone' directive guarantees the expected behavior.
+#   zone_size: "64k"
+# "strategy" PARAMETER EXPLANATION:
+# 'round-robin' - default balancing algorithm that is used if no other balancing directives are present. Each server
+#                 defined in the upstream context is passed requests sequentially in turn.
+# 'ip_hash' - balancing mechanism sends visitors back to the same server each time.
+# 'least_conn' - method routes each request to the upstream server with the fewest active connections. This method works
+#                well when handling a mixture of quick and complex requests.
+# 'hash' - этот алгоритм обычно применяется при memcache проксировании. Серверы делятся на группы основываясь на независимом
+#          хеш ключе, который может состоят из текста, переменных или различных комбинаций. Только этот метод предполагает
+#          получение данных от пользователя в виде ключа. (e.g. hash $request_uri; hash $remote_addr$remote_port consistent;)
+#   strategy: "ip_hash"
+# "servers" PARAMETER EXPLANATION:
+# Set up multiple webservers for Load Balancing.
+#   * 'max_fails'    - refers to number of failed attempts (default: 1) during the 'fail_timeout' value before server
+#                      is considered inactive.
+#   * 'fail_timeout' - parameter sets the time (default: 10s) during which the specified number of failed attempts
+#                      should happen and still consider the server unavailable.
+#   * 'weight'       - priorities traffic to server. For example, weight=2 will recieve twice as much traffic as server
+#                      with weight=1
+# If we wanted only a single server to receive requests, but had a backup server available in the event the primary
+# failed, we could tell nginx to handle it with 'backup' directive:
+#   servers: [
+#     "srv1.example.com max_fails=1 fail_timeout=10s weight=1",
+#     "srv2.example.com weight=3",
+#     "srv3.example.com max_fails=1 fail_timeout=10s weight=1 backup"
+#   ]
+# "keepalive" PARAMETER EXPLANATION:
+# Enable number of keep-alive connections
+#   keepalive: 16 # optional
+nginx_config_http_upstreams: []
+#=======================================================================================================================
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Used in:
+#   * tasks/05-configure_vhosts.yml
+nginx_remove_default_vhost: "{{ true if nginx_vhosts|length > 0 else false }}"
+# ----------------------------------------------------------------------------------------------------------------------
+# also used in:
+#   * templates/vhosts.j2
+#
+# Example vhost below, showing all available options configured by default:
+# - listen: "80 default_server"
+#   ipv6_enabled: true
+#   # Domain names. Make sure to set the 'A'-record on your domain's DNS settings to your server's IP address.
+#   server_names:
+#     - example.com
+#     - www.example.com
+#   ssl_enabled: false
+#   ssl_with_letsencrypt: true
+#   ssl_cert: "/etc/letsencrypt/live/<servername>/fullchain.pem"
+#   ssl_cert_key: "/etc/letsencrypt/live/<servername>/privkey.pem"
+#   root: "/var/www/example.com"
+#   locations:
+#     - path: "~ \.php$"
+#       parameters: |
+#         fastcgi_split_path_info ^(.+\.php)(/.+)$; # NOTE: You should have "cgi.fix_pathinfo = 0;" in php.ini
+#         fastcgi_pass 127.0.0.1:9000; # With php5-cgi alone (also pay attention to following):
+#         fastcgi_pass unix:/var/run/php5-fpm.sock; # or with php5-fpm
+#         fastcgi_index index.php;
+#         include fastcgi_params;
+#     - path: "/"
+#       parameters: | # Can be used to add extra config blocks (multiline).
+#         rewrite ^(.*)? app.php
+#   # Add cached static content mappings?
+#   static_content_locations_enabled: false
+#   extra_parameters: | # Can be used to add extra config blocks (multiline).
+#     ...
+nginx_vhosts: []
+#=======================================================================================================================
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Used in:
+#   * meta/main.yml
+# Format relative to the "letsencrypt"-role variable:
+#   - server_names:
+#     - example1.com
+#     - www.example1.com
+#   - webroot_path: ""
+#   ...etc.
+nginx_letsencrypt_certs: []
+#=======================================================================================================================

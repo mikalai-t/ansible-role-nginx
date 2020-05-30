@@ -1,0 +1,45 @@
+---
+# file: tasks/04-configure_vhosts.yml
+
+- name: "04.1.1 - get unique list of port nginx is configured to listen on"
+  set_fact:
+    cacheable: False
+    unique_nginx_listeners: "{{ (nginx_vhosts|selectattr('server_names', 'defined')|selectattr('listen', 'defined')|rejectattr('listen', 'search', 'default_server')|list)|map(attribute='listen')|map('regex_replace', '^([0-9]+)+(.*)$', '\\1')|list|unique }}"
+  check_mode: False
+
+- name: "04.1.2 - template vhosts config (if any vhosts are configured)"
+  template:
+    src: nginx.vhosts.j2
+    dest: "{{ nginx_vhosts_conf_dir }}/{{ nginx_vhosts_managed_file_name }}"
+    backup: True
+  become: True
+  notify:
+    - test-nginx-config
+    - reload-nginx
+
+- name: "04.1.3 - create symlink to the managed vhosts config"
+  file:
+    src: "{{ nginx_vhosts_conf_dir }}/{{ nginx_vhosts_managed_file_name }}"
+    dest: "{{ nginx_vhosts_enabled_dir }}/{{ nginx_vhosts_managed_file_name }}"
+    state: link
+    force: True
+  become: True
+  notify:
+    - test-nginx-config
+    - reload-nginx
+  when:
+    - nginx_vhosts_enabled_dir|string != nginx_conf_d_dir|string
+
+- name: "04.2 - make sure default vhosts config is absent"
+  file:
+    dest: "{{ nginx_vhosts_enabled_dir }}/{{ nginx_vhosts_default_file_name }}"
+    state: absent
+    force: True
+  become: True
+  notify:
+    - test-nginx-config
+    - reload-nginx
+  when:
+    - nginx_vhosts_default_file_name|string|length > 0
+
+- meta: flush_handlers

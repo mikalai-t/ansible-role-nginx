@@ -1,0 +1,42 @@
+---
+# file: tasks/03-configure_webserver.yml
+
+- name: "03.1.1 - make sure website's directory exists and properly configured"
+  file:
+    path: "{{ nginx_websites_root_dir }}"
+    state: directory
+    recurse: False
+    owner: "{{ nginx_user }}"
+    group: "{{ nginx_group }}"
+    mode: "ug=rwX,o=rX"
+  become: True
+
+- name: "03.1.2 - make sure required directories are created"
+  file:
+    dest: "{{ item }}"
+    state: directory
+  become: True
+  with_items:
+    - "{{ nginx_ssl_dir|string }}"
+    - "{{ nginx_vhosts_conf_dir|string }}"
+    - "{{ nginx_vhosts_enabled_dir|string }}"
+
+- name: "03.3 - generate dh-group only if it does not exist"
+  shell:
+    "openssl dhparam -out {{ nginx_ssl_dhparam_file|string }} {{ nginx_ssl_dhparam_size|string }}"
+  become: True
+  args:
+    creates: "{{ nginx_ssl_dhparam_file|string }}"
+  async: "{{ 900 if nginx_ssl_dhparam_size|int < 4096 else 7200 }}"
+  poll: 3
+
+- name: "03.4 - template nginx config"
+  template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_config_file }}"
+    backup: True
+    mode: "0600"
+  become: True
+  notify:
+    - test-nginx-config
+    - reload-nginx

@@ -1,0 +1,17 @@
+---
+# file: tasks/01-prepare_env.yml
+
+- name: "01.1 - get current nginx version"
+  shell:
+    "nginx -v 2>&1 | sed -r 's/.*([0-9]{1}\\.[0-9]{1,2}\\.[0-9]{1,2}).*/\\1/g'"
+  become: True
+  register: current_nginx_version
+  changed_when: False
+  check_mode: False
+- name: "DEBUG(02.4.1) - current nginx version"
+  debug:
+    msg: "{{ current_nginx_version.stdout }}"
+  when:
+    - nginx_package_state|string|lower != 'absent'
+    - current_nginx_version is defined and
+      current_nginx_version.stdout is defined

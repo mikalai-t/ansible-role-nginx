@@ -1,0 +1,289 @@
+#jinja2: lstrip_blocks: True, trim_blocks: True
+# {{ ansible_managed }}
+
+## Syntax:   user <user> [group];
+# Defines user and group credentials used by worker processes. If group is omitted, a group whose name equals that of
+# user is used.
+user                        {{ nginx_user }};
+# Defines a file that will store the process ID of the main process.
+pid                         {{ nginx_pid_file }};
+
+## Syntax:   error_log file [level];
+# Configures logging. Several logs can be specified on the same level. If on the main configuration level writing a log
+# to a file is not explicitly defined, the default file will be used. The first parameter defines a file that will store
+# the log. The special value stderr selects the standard error file. Logging to syslog can be configured by specifying
+# the 'syslog:' prefix. Logging to a cyclic memory buffer can be configured by specifying the 'memory:' prefix and
+# buffer size, and is generally used for debugging. The second parameter determines the level of logging, and can be one
+# of the following: debug, info, notice, warn, error, crit, alert, or emerg. Log levels above are listed in the order of
+# increasing severity. Setting a certain log level will cause all messages of the specified and more severe log levels
+# to be logged. For example, the default level error will cause error, crit, alert, and emerg messages to be logged. If
+# this parameter is omitted then error is used.
+error_log                   {{ nginx_config_global_error_log }};
+
+## Syntax:  worker_processes number | auto;
+# Defines the number of worker processes. The optimal value depends on many factors including (but not limited to) the
+# number of CPU cores, the number of hard disk drives that store data, and load pattern. When one is in doubt, setting
+# it to the number of available CPU cores would be a good start (the value "auto" will try to autodetect it).
+worker_processes            {{ nginx_config_global_worker_processes }};
+# Changes the limit on the maximum number of open files (RLIMIT_NOFILE) for worker processes. Used to increase the limit
+# without restarting the main process.
+worker_rlimit_nofile        {{ nginx_config_global_worker_rlimit_nofile|int }};
+
+# Enables the use of JIT for regular expressions to speed-up their processing.
+pcre_jit                    on;
+
+{% if ansible_os_family|lower == 'redhat' %}
+# Load dynamic modules. See /usr/share/nginx/README.dynamic.
+include                     /usr/share/nginx/modules/*.conf;
+{% elif ansible_os_family|lower == 'alpine' %}
+# Includes files with directives to load dynamic modules.
+include                     {{ nginx_config_dir }}/modules/*.conf;
+{% endif %}
+
+events {
+    # Sets the maximum number of simultaneous connections that can be opened by a worker process. It should be kept in
+    # mind that this number includes all connections (e.g. connections with proxied servers, among others), not only
+    # connections with clients. Another consideration is that the actual number of simultaneous connections cannot
+    # exceed the current limit on the maximum number of open files, which can be changed by 'worker_rlimit_nofile'.
+    worker_connections      {{ nginx_config_global_worker_rlimit_nofile|int // 2 }};
+
+    # optmized to serve many clients with each thread, essential for linux
+    use                     epoll;
+
+    # accept as many connections as possible, may flood worker connections if set too low
+    multi_accept            on;
+}
+
+{% if nginx_config_global_extra_conf_options is defined %}
+{{ nginx_config_global_extra_conf_options }}
+{% endif %}
+
+http {
+    #################
+    # Basic Settings
+    ####
+    # Includes mapping of file name extensions to MIME types of responses and defines the default type. NOTE(!): it's
+    # a file mask that matches only one file, and won't make nginx complain if the file does not exist!
+    include                             {{ nginx_config_dir }}/mime[.]types;
+    default_type                        application/octet-stream;
+
+{% for conn_zone in nginx_config_http_basic_limit_conn_zones %}
+    # Syntax:   limit_conn_zone key zone=name:size;
+    # Sets parameters for a shared memory zone that will keep states for various keys. In particular, the state includes
+    # the current number of connections. The key can contain text, variables, and their combination. Requests with an
+    # empty key value are not accounted.
+    limit_conn_zone                     {{ conn_zone }};
+{% endfor %}
+{% for conn in nginx_config_http_basic_limit_conns %}
+    # Syntax:   limit_conn zone number;
+    # Sets the shared memory zone and the maximum allowed number of connections for a given key value. When this limit
+    # is exceeded, the server will return the 503 (Service Temporarily Unavailable) error in reply to a request.
+    limit_conn                          {{ conn }};
+{% endfor %}
+
+    # Enables or disables the use of sendfile().
+    sendfile                            {{ nginx_config_http_basic_sendfile }};
+    # Enables or disables the use of the TCP_NOPUSH socket option on FreeBSD or the TCP_CORK socket option on Linux. The
+    # options are enabled only when sendfile is used. Enabling the option allows:
+    #   * sending the response header and the beginning of a file in one packet, on Linux and FreeBSD 4.*;
+    #   * sending a file in full packets.
+    tcp_nopush                          {{ nginx_config_http_basic_tcp_nopush }};
+
+    # Enables or disables the use of the TCP_NODELAY option. The option is enabled only when a connection is
+    # transitioned into the keep-alive state.
+    tcp_nodelay                         {{ nginx_config_http_basic_tcp_nodelay }};
+
+    ## Syntax:   keepalive_timeout timeout [header_timeout];
+    # The first parameter sets a timeout during which a keep-alive client connection will stay open on the server side.
+    # The zero value disables keep-alive client connections. The optional second parameter sets a value in the
+    # "Keep-Alive: timeout=time" response header field. Two parameters may differ. The "Keep-Alive: timeout=time" header
+    # field is recognized by Mozilla and Konqueror. MSIE closes keep-alive connections by itself in about 60 seconds.
+    keepalive_timeout                   {{ nginx_config_http_basic_keepalive_timeout }};
+
+    # Sets a timeout for transmitting a response to the client. The timeout is set only between two successive write
+    # operations, not for the transmission of the whole response. If the client does not receive anything within this
+    # time, the connection is closed.
+    send_timeout                        {{ nginx_config_http_basic_send_timeout }};
+
+    # Config to don't allow the browser to render the page inside an frame or iframe and avoid clickjacking
+    # http://en.wikipedia.org/wiki/Clickjacking. If you need to allow [i]frames, you can use SAMEORIGIN or even set an
+    # uri with ALLOW-FROM uri (See https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options)
+    add_header                          X-Frame-Options             SAMEORIGIN;
+
+    # When serving user-supplied content, include a X-Content-Type-Options: nosniff header along with the
+    # Content-Type: header, to disable content-type sniffing on some browsers.
+    # https://www.owasp.org/index.php/List_of_useful_HTTP_headers
+    # Currently suppoorted in IE > 8 http://blogs.msdn.com/b/ie/archive/2008/09/02/ie8-security-part-vi-beta-2-update.aspx
+    # http://msdn.microsoft.com/en-us/library/ie/gg622941(v=vs.85).aspx
+    # 'soon' on Firefox https://bugzilla.mozilla.org/show_bug.cgi?id=471020
+    add_header                          X-Content-Type-Options      nosniff;
+
+    # This header enables the Cross-site scripting (XSS) filter built into most recent web browsers. It's usually
+    # enabled by default anyway, so the role of this header is to re-enable the filter for this particular website if it
+    # was disabled by the user (See https://www.owasp.org/index.php/List_of_useful_HTTP_headers)
+    add_header                          X-XSS-Protection            "1; mode=block";
+
+    # Enables or disables emitting nginx version on error pages and in the "Server" response header field.
+    server_tokens                       off;
+    # Enables or disables the use of the primary server name, specified by the server_name directive, in absolute
+    # redirects issued by nginx. When the use of the primary server name is disabled, the name from the "Host" request
+    # header field is used. If this field is not present, the IP address of the server is used.
+    server_name_in_redirect             off;
+
+    # Sets the bucket size for the server names hash tables. The default value depends on the size of the processor’s
+    # cache line.
+    server_names_hash_bucket_size       128;
+
+    # Defines a timeout for reading client request header. If a client does not transmit the entire header within this
+    # time, the 408 (Request Time-out) error is returned to the client.
+    client_header_timeout               {{ nginx_config_http_basic_client_header_timeout }};
+    # Defines a timeout for reading client request body. The timeout is set only for a period between two successive
+    # read operations, not for the transmission of the whole request body. If a client does not transmit anything within
+    # this time, the 408 (Request Time-out) error is returned to the client.
+    client_body_timeout                 {{ nginx_config_http_basic_client_body_timeout }};
+
+    # Sets the maximum allowed size of the client request body, specified in the "Content-Length" request header field.
+    # If the size in a request exceeds the configured value, the 413 (Request Entity Too Large) error is returned to the
+    # client. Please be aware that browsers cannot correctly display this error. Setting size to 0 disables checking of
+    # client request body size.
+    client_max_body_size                {{ nginx_config_http_basic_client_max_body_size }};
+
+    # Sets the maximum size of the types hash tables.
+    types_hash_max_size                 2048;
+
+    # Enables or disables resetting timed out connections. The reset is performed as follows. Before closing a socket,
+    # the SO_LINGER option is set on it with a timeout value of 0. When the socket is closed, TCP RST is sent to the
+    # client, and all memory occupied by this socket is released. This helps avoid keeping an already closed socket with
+    # filled buffers in a FIN_WAIT1 state for a long time. It should be noted that timed out keep-alive connections are
+    # closed normally.
+    reset_timedout_connection           on;
+
+    ##############
+    # SSL Settings
+    ####
+    # Enables the specified protocols.
+    ssl_protocols                       TLSv1.2 TLSv1.3;
+    # Specifies that server ciphers should be preferred over client ciphers when using the SSLv3 and TLS protocols.
+    ssl_prefer_server_ciphers           on;
+    # Specifies the enabled ciphers. The ciphers are specified in the format understood by the OpenSSL library.
+    # See https://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations
+    #ssl_ciphers                         ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256;
+    ssl_ciphers                          TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+
+    # Syntax:   ssl_session_cache off | none | [builtin[:size]] [shared:name:size];
+    # Sets the types and sizes of caches that store session parameters. A cache can be of any of the following types:
+    #   * off - the use of a session cache is strictly prohibited: nginx explicitly tells a client that sessions may not
+    #           be reused.
+    #   * none - the use of a session cache is gently disallowed: nginx tells a client that sessions may be reused, but
+    #            does not actually store session parameters in the cache.
+    #   * builtin - a cache built in OpenSSL; used by one worker process only. The cache size is specified in sessions.
+    #               If size is not given, it is equal to 20480 sessions. Use of the built-in cache can cause memory
+    #               fragmentation.
+    #   * shared - a cache shared between all worker processes. The cache size is specified in bytes; one megabyte can
+    #              store about 4000 sessions. Each shared cache should have an arbitrary name. A cache with the same
+    #              name can be used in several virtual servers.
+    # Both cache types can be used simultaneously, but using only shared cache without the built-in cache should be more
+    # efficient.
+    ssl_session_cache                   shared:TLS:10m;
+    # Specifies a time during which a client may reuse the session parameters.
+    ssl_session_timeout                 5m;
+
+    # Specifies a file with DH parameters for DHE ciphers.
+    ssl_dhparam                         {{ nginx_ssl_dhparam_file }};
+
+    # Sets the size of the buffer used for sending data. By default, the buffer size is 16k, which corresponds to
+    # minimal overhead when sending big responses. To minimize Time To First Byte it may be beneficial to use smaller
+    # values, for example buffer size of 1400 bytes fits in one MTU.
+    ssl_buffer_size                     1400;
+
+    ##################
+    # Logging Settings
+    ####
+    log_format main                     {{ nginx_config_http_log_format }};
+    access_log                          {{ nginx_config_http_access_log }}      main;
+
+    ###############
+    # Gzip Settings
+    ####
+    # Enables or disables gzipping of responses
+    gzip                    on;
+    # Sets the <number> and <size> of buffers used to compress a response. By default, the buffer size is equal to one
+    # memory page. This is either [32 4K] or [16 8K], depending on a platform. Run 'getconf PAGESIZE' (Ubuntu 16.04 = 4k)
+    gzip_buffers            32 4k;
+    # Sets a gzip compression level of a response. Acceptable values are in the range from 1 to 9.
+    gzip_comp_level         6;
+    # Disables gzipping of responses for requests with "User-Agent" header fields matching any of the specified regular
+    # expressions. The special mask "msie6" (0.7.12) corresponds to the regular expression "MSIE [4-6]\.", but works
+    # faster. Starting from version 0.8.11, "MSIE 6.0; ... SV1" is excluded from this mask.
+    gzip_disable            "msie6";
+    # Sets the minimum length of a response that will be gzipped. The length is determined only from the
+    # "Content-Length" response header field.
+    gzip_min_length         1024;
+    # Sets the minimum HTTP version of a request required to compress a response
+    gzip_http_version       1.1;
+
+    # Enables or disables gzipping of responses for proxied requests depending on the request and response. The fact
+    # that the request is proxied is determined by the presence of the "Via" request header field. The directive accepts
+    # multiple parameters:
+    #   * off - disables compression for all proxied requests, ignoring other parameters;
+    #   * expired - enables compression if a response header includes the "Expires" field with a value that disables caching;
+    #   * no-cache - enables compression if a response header includes the "Cache-Control" = "no-cache";
+    #   * no-store - enables compression if a response header includes the "Cache-Control" = "no-store";
+    #   * private - enables compression if a response header includes the "Cache-Control" = "private";
+    #   * no_last_modified - enables compression if a response header does not include the "Last-Modified" field;
+    #   * no_etag - enables compression if a response header does not include the "ETag" field;
+    #   * auth - enables compression if a request header includes the "Authorization" field;
+    #   * any - enables compression for all proxied requests.
+    gzip_proxied            any;
+
+    # Enables gzipping of responses for the specified MIME types in addition to "text/html". The special value "*"
+    # matches any MIME type (0.8.29). Responses with the "text/html" type are always compressed.
+    gzip_types          text/plain text/css text/javascript text/xml text/x-js application/javascript application/x-javascript application/ecmascript application/json application/xml application/xml+rss application/msword application/vnd.ms-excel application/vnd.ms-powerpoint application/vnd.ms-fontobject application/x-font-ttf font/opentype image/svg+xml image/x-icon;
+    # Enables or disables inserting the "Vary: Accept-Encoding" response header field if the directives 'gzip',
+    # 'gzip_static', or 'gunzip' are active.
+    gzip_vary               on;
+
+    #####################
+    # Additional Settings
+    ####
+    ## For proxying web-sockets
+    map $http_upgrade $connection_upgrade {
+        default         "upgrade";
+        ""              close;
+    }
+
+{% if nginx_config_http_extra_options is defined and nginx_config_http_extra_options|length >0 %}
+    {{ nginx_config_http_extra_options|indent(4, true) }}
+{% endif %}
+
+
+{% if nginx_config_http_upstreams is defined and nginx_config_http_upstreams|length > 0 %}
+    ####################
+    # Upstreams Settings
+    ####
+    {% for upstream in nginx_config_http_upstreams %}
+    upstream    {{ upstream.name }} {
+        {% if upstream.zone_size is defined %}
+        zone        {{ upstream.name }} {{ upstream.zone_size }};
+        {% endif %}
+        {% if upstream.strategy is defined and upstream.strategy != 'round-robin' %}
+        {{ upstream.strategy }};
+        {% endif %}
+        {% for server in upstream.servers %}
+        server      {{ server }};
+        {% endfor %}
+        {% if upstream.keepalive is defined %}
+        keepalive   {{ upstream.keepalive }};
+        {% endif %}
+    }
+    {% endfor %}
+{% endif %}
+
+#######################
+# Virtual Hosts Configs
+####
+    include {{ nginx_conf_d_dir }}/*.conf;
+{% if nginx_vhosts_enabled_dir|string != nginx_conf_d_dir|string %}
+    include {{ nginx_vhosts_enabled_dir }}/*;
+{% endif %}
+}

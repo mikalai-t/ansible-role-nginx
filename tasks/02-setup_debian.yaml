@@ -1,0 +1,107 @@
+---
+# file: tasks/02-setup_debian.yml
+
+- name: "02.1.(debian) - manage state of gpg-key"
+  apt_key:
+    url: "{{ nginx_gpg_key_url }}"
+    id: "{{ nginx_gpg_key_id }}"
+    state: "{{ 'absent' if nginx_package_state|string|lower == 'absent' else 'present' }}"
+  become: True
+
+- name: "02.2.1.(debian) - manage state of nginx official apt repository"
+  apt_repository:
+    repo: "{{ item }}"
+    state: "{{ 'present' if (nginx_package_state|string|lower != 'absent' and nginx_use_official_repo|bool) else 'absent' }}"
+    update_cache: False
+  become: True
+  register: apt_repo_updated
+  with_items:
+    - "{{ nginx_apt_repo }}"
+
+- name: "02.2.2.(debian) - manage state of nginx ppa repository"
+  apt_repository:
+    repo: "{{ nginx_ppa_repo }}"
+    state: "{{ 'present' if (nginx_package_state|string|lower != 'absent' and nginx_use_ppa_repo|bool) else 'absent' }}"
+    update_cache: False
+  become: True
+  register: ppa_repo_updated
+
+- name: "02.3.(debian) - update apt cache"
+  apt:
+    update_cache: yes
+    cache_valid_time: 0
+  become: True
+  ignore_errors: True
+  when:
+    - (apt_repo_updated is defined and apt_repo_updated is changed) or
+      (ppa_repo_updated is defined and ppa_repo_updated is changed)
+
+- name: "02.4.(debian) - check if new nginx version is available"
+  shell:
+    "apt-cache policy nginx 2>&1 | sed -r -n 's/.*(Candidate\\:\\ )([0-9]{1}\\.[0-9]{1,2}\\.[0-9]{1,2}).*/\\2/p'"
+  environment:
+    # to force application to use the default language for output
+    LC_ALL: "C"
+  become: True
+  register: latest_available_nginx_version
+  changed_when: false
+  check_mode: no
+- name: "DEBUG(02.4.(debian)) - available nginx version"
+  debug:
+    msg: "{{ latest_available_nginx_version.stdout }}"
+  when:
+    - nginx_package_state|string|lower != 'absent'
+    - latest_available_nginx_version is defined and
+      latest_available_nginx_version.stdout is defined and
+      not latest_available_nginx_version.stdout is search('not found')
+
+- block:
+  - name: "02.5.1.(debian) - stop nginx daemon before re-installing if repository was changed or new version is available"
+    service:
+      name: "{{ nginx_service_name }}"
+      state: stopped
+    become: True
+    ignore_errors: True
+  - name: "02.5.2.(debian) - remove previous nginx packages if repository changed before new installation"
+    apt:
+      name: "nginx-common, nginx-core, {{ nginx_packages|select()|list|join(',') }}"
+      state: absent
+      purge: True
+    become: True
+  # block condition
+  when:
+    - (
+        (nginx_package_state|string|lower != 'latest' and nginx_package_state|string|lower != 'absent') and
+        (
+          (apt_repo_updated is defined and apt_repo_updated is changed) or
+          (ppa_repo_updated is defined and ppa_repo_updated is changed)
+        )
+      ) or
+      (
+        (
+          current_nginx_version is defined and
+          current_nginx_version.stdout is defined and
+          current_nginx_version.stdout|length > 0 and
+          latest_available_nginx_version is defined and
+          latest_available_nginx_version.stdout is defined and
+          latest_available_nginx_version.stdout|length > 0
+        ) and
+        (
+          nginx_package_state|string|lower == 'latest' and
+          current_nginx_version.stdout is version_compare(latest_available_nginx_version.stdout, '<')
+        )
+      ) or
+      (nginx_package_state|string|lower == 'absent')
+
+- name: "02.6.1.(debian) - make sure all nginx dependencies are installed"
+  apt:
+    name: "{{ nginx_prerequisites|select()|list }}"
+    state: latest
+  become: True
+  when:
+    - nginx_package_state|string|lower != 'absent'
+- name: "02.6.2.(debian) - setup nginx package(s) state"
+  apt:
+    name: "{{ nginx_packages|select()|list }}"
+    state: "{{ nginx_package_state|string|lower }}"
+  become: True

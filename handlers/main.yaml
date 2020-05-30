@@ -1,0 +1,30 @@
+---
+# file: handlers/main.yml
+
+# Note: set cache_valid_time=0 to ensure that an apt-get update after the added repo-key else you often get
+# 'WARNING: The following packages cannot be authenticated!
+# See also: http://askubuntu.com/questions/75565/why-am-i-getting-authentication-errors-for-packages-from-an-ubuntu-repository
+- name: "nginx-update-apt-cache"
+  apt:
+    update_cache: True
+    cache_valid_time: 0
+  become: True
+  ignore_errors: True
+
+- name: "test-nginx-config"
+  shell:
+    "nginx -t -c {{ nginx_config_file }}"
+  become: True
+  ignore_errors: "{{ True if ansible_virtualization_role|lower == 'guest' and ansible_virtualization_type|lower == 'docker' else False }}"
+
+- name: "reload-nginx"
+  service:
+    name: "{{ nginx_service_name }}"
+    state: "{{ 'reloaded' if ansible_os_family|lower != 'alpine' else 'restarted' }}"
+  become: True
+
+- name: "restart-nginx"
+  service:
+    name: "{{ nginx_service_name }}"
+    state: restarted
+  become: True
