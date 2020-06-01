@@ -15,9 +15,9 @@
     dest: "{{ item }}"
     state: directory
     recurse: yes
-    owner: "{{ __nginx_user }}"
-    group: "{{ __nginx_group }}"
-  become: True
+    owner: 0
+    group: 0
+  become: yes
   loop:
     - "{{ __nginx_config_dir }}"
     - "{{ __nginx_conf_d_dir }}"
@@ -30,8 +30,6 @@
     path: "{{ __nginx_ssl_dhparam_file }}"
     size: "{{ __nginx_ssl_dhparam_size }}"
   become: yes
-  async: "{{ 900 if __nginx_ssl_dhparam_size|int < 4096 else 7200 }}"
-  poll: 3
 
 - name: "03.3.2 - place additional certificate files into SSL sub-dir"
   copy:
