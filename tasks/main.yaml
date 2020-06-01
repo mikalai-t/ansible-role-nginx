@@ -1,12 +1,12 @@
 ---
 
-- include_tasks: 01-prepare-env.yml
+- include_tasks: 01-prepare-env.yaml
 
-- include_tasks: 02-setup-packages.yml
+- include_tasks: 02-setup-packages.yaml
 
-- include_tasks: 03-configure-server.yml
+- include_tasks: 03-configure-server.yaml
 
-- include_tasks: 04-configure-vhosts.yml
+- include_tasks: 04-configure-vhosts.yaml
 
 - name: "0.5 - make sure nginx is enabled and started"
   service:
