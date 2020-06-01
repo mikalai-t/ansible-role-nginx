@@ -41,11 +41,9 @@
 - name: "02.4.2 - parse output"
   set_fact:
     _latest_nginx_version: "{{
-      _get_latest_available_nginx_version.stdout|regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})', multiline=True, ignorecase=True)|regex_search('([0-9]{1,2}\\.){2}[0-9]{1,2}', multiline=True, ignorecase=True)
-        if (_get_latest_available_nginx_version is defined and
-              _get_latest_available_nginx_version.stdout is defined and
-                _get_latest_available_nginx_version.stdout|regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})', multiline=True, ignorecase=True) != '')
-        else '0.0.0'
+      _get_latest_available_nginx_version.stdout
+        | regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})', multiline=True, ignorecase=True)
+          | ternary(_get_latest_available_nginx_version.stdout|regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})', multiline=True, ignorecase=True)|regex_search('([0-9]{1,2}\\.){2}[0-9]{1,2}', multiline=True, ignorecase=True), '0.0.0')
     }}"
 
 - name: "debug - the latest available nginx version"
