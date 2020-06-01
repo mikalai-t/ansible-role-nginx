@@ -20,7 +20,7 @@
       _get_current_nginx_version.stdout|regex_search('([0-9]{1,2}\\.){2}[0-9]{1,2}', multiline=True, ignorecase=True)
         if (_get_current_nginx_version is defined and
               _get_current_nginx_version.stdout is defined and
-                _get_current_nginx_version.stdout|regex_search('([0-9]{1,2}\\.){2}[0-9]{1,2}', multiline=True, ignorecase=True) != "")
+                _get_current_nginx_version.stdout|regex_search('([0-9]{1,2}\\.){2}[0-9]{1,2}', multiline=True, ignorecase=True) != '')
         else '0.0.0'
     }}"
 
