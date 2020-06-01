@@ -1,42 +1,39 @@
 ---
 
-- name: "04.1 - template vhosts configs"
+- name: "04.1 - make sure default vhost is removed"
+  file:
+    path: "{{ __nginx_conf_d_dir }}/default.conf"
+    state: absent
+  become: yes
+  notify:
+    - nginx-test-config
+    - nginx-reload-service
+
+- name: "04.2 - template vhosts config-files"
   template:
     src: nginx.vhost.j2
-    dest: "{{ __nginx_vhosts_conf_dir }}/{{ item.name }}"
+    dest: "{{ __nginx_conf_d_dir }}/{{ item.name }}.vhost.conf"
   become: yes
   notify:
     - nginx-test-config
     - nginx-reload-service
+  loop_control:
+    label: "{{ item.name }}.vhost.conf"
   loop: "{{ nginx_vhosts|flatten(1) }}"
 
-- name: "04.2 - create symlink to enable vhosts"
-  file:
-    src: "{{ __nginx_vhosts_conf_dir }}/{{ item.name }}"
-    dest: "{{ __nginx_vhosts_enabled_dir }}/{{ item.name }}"
-    state: link
-    force: yes
-  become: yes
-  notify:
-    - nginx-test-config
-    - nginx-reload-service
-  loop: "{{ nginx_vhosts|flatten(1) }}"
-  when:
-    - __nginx_vhosts_enabled_dir != __nginx_conf_d_dir
-
-- name: "04.3.1 - find all files in the vhosts dir"
+- name: "04.3.1 - find exists vhosts config-files"
   find:
     paths:
-      - "{{ __nginx_vhosts_enabled_dir }}"
+      - "{{ __nginx_conf_d_dir }}"
     recurse: no
     hidden: yes
-    patterns: "*"
+    patterns: "*.vhost.conf"
     use_regex: no
-    file_type: any
+    file_type: file
   register: _vhost_config_files
   become: yes
 
-- name: "04.3.2 - delete files which are not in the list of enabled"
+- name: "04.3.2 - delete files which are not in the list of configured vhosts"
   file:
     path: "{{ item.path }}"
     state: absent
@@ -46,7 +43,7 @@
     - nginx-test-config
     - nginx-reload-service
   when:
-    - item.path|basename not in nginx_vhosts|map(attribute='name')|list
+    - ((item.path|basename).split('.vhost.conf'))[0] not in nginx_vhosts|map(attribute='name')|list
   loop: "{{ _vhost_config_files.files }}"
   become: yes
 

@@ -235,7 +235,4 @@ http {
     # Virtual Hosts Configs
     ####
     include {{ __nginx_conf_d_dir }}/*.conf;
-{% if __nginx_vhosts_enabled_dir|string != __nginx_conf_d_dir|string %}
-    include {{ __nginx_vhosts_enabled_dir }}/*;
-{% endif %}
 }

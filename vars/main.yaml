@@ -31,6 +31,3 @@ __nginx_websites_root_dir: "/var/www"
 __nginx_ssl_dhparam_size: 2048
 __nginx_ssl_dhparam_file: "{{ __nginx_ssl_dir }}/dhparam{{ __nginx_ssl_dhparam_size }}.pem"
 
-__nginx_vhosts_conf_dir: "{{ __nginx_config_dir }}/sites-available"
-__nginx_vhosts_enabled_dir: "{{ __nginx_config_dir }}/sites-enabled"
-

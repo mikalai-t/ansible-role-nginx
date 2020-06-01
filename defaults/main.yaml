@@ -22,5 +22,22 @@ nginx_certificates: []
 #       fastcgi_index index.php;
 #       include fastcgi_params;
 #     }
-nginx_vhosts: []
+nginx_vhosts:
+  - name: default
+    vhost_config: |
+      server {
+          listen          80 default_server;
+          server_name     localhost;
+
+          error_page   500 502 503 504  /50x.html;
+
+          location / {
+              root        /usr/share/nginx/html;
+              index       index.html index.htm;
+          }
+
+          location = /50x.html {
+              root        /usr/share/nginx/html;
+          }
+      }
 #=======================================================================================================================

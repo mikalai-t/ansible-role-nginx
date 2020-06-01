@@ -10,7 +10,7 @@
     mode: "ug=rwX,o=rX"
   become: yes
 
-- name: "03.1.2 - make sure required directories are created"
+- name: "03.1.2 - make sure required config directories exists and properly configured"
   file:
     dest: "{{ item }}"
     state: directory
@@ -22,16 +22,14 @@
     - "{{ __nginx_config_dir }}"
     - "{{ __nginx_conf_d_dir }}"
     - "{{ __nginx_ssl_dir }}"
-    - "{{ __nginx_vhosts_conf_dir }}"
-    - "{{ __nginx_vhosts_enabled_dir }}"
 
-- name: "03.3.1 - make sure Diffie-Hellman Parameters file is generated"
+- name: "03.2 - make sure Diffie-Hellman Parameters file is generated"
   openssl_dhparam:
     path: "{{ __nginx_ssl_dhparam_file }}"
     size: "{{ __nginx_ssl_dhparam_size }}"
   become: yes
 
-- name: "03.3.2 - place additional certificate files into SSL sub-dir"
+- name: "03.3 - place additional certificate files into SSL sub-dir"
   copy:
     dest: "{{ __nginx_ssl_dir }}/{{ item.name }}"
     content: "{{ item.content }}"
