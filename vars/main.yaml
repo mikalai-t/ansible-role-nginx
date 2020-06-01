@@ -1,7 +1,7 @@
 ---
 # file: vars/main.yml
 
-nginx_prerequisites:
+__nginx_prerequisites:
   - curl
   - gnupg2
   - lsb-release
@@ -15,33 +15,22 @@ __nginx_apt_repo: "deb http://nginx.org/packages/{{ ansible_distribution|lower }
 __nginx_package_name: nginx
 __nginx_service_name: nginx
 
-nginx_user: www-data
-nginx_group: www-data
+__nginx_user: www-data
+__nginx_group: www-data
 
-nginx_pid_file: "{{ '/var/run/nginx.pid' if ansible_os_family|lower == 'debian' else
-                    '/run/nginx.pid' if ansible_os_family|lower == 'redhat' else
-                    '/run/nginx/nginx.pid' if ansible_os_family|lower == 'alpine' }}"
+__nginx_pid_file: /var/run/nginx.pid
 
-nginx_config_http_access_log: /var/log/nginx/access.log
+__nginx_config_dir: /etc/nginx
+__nginx_config_file: "{{ __nginx_config_dir }}/nginx.conf"
+__nginx_conf_d_dir: "{{ __nginx_config_dir }}/conf.d"
+__nginx_ssl_dir: "{{ __nginx_config_dir }}/ssl"
 
-nginx_config_dir: /etc/nginx
-nginx_config_file: "{{ nginx_config_dir }}/nginx.conf"
-nginx_conf_d_dir: "{{ nginx_config_dir }}/conf.d"
-nginx_ssl_dir: "{{ nginx_config_dir }}/ssl"
+__nginx_websites_root_dir: "/var/www"
 
 # Specifies a file with DH parameters for DHE ciphers.
 __nginx_ssl_dhparam_size: 2048
-__nginx_ssl_dhparam_file: "{{ nginx_ssl_dir }}/dhparam{{ __nginx_ssl_dhparam_size }}.pem"
+__nginx_ssl_dhparam_file: "{{ __nginx_ssl_dir }}/dhparam{{ __nginx_ssl_dhparam_size }}.pem"
 
-nginx_vhosts_conf_dir: "{{ nginx_config_dir ~ '/' ~ ('sites-available' if ansible_os_family|lower == 'debian' else
-                                                     'conf.d' if ansible_os_family|lower in ['redhat','alpine']) }}"
+__nginx_vhosts_conf_dir: "{{ __nginx_config_dir }}/sites-available"
+__nginx_vhosts_enabled_dir: "{{ __nginx_config_dir }}/sites-enabled"
 
-nginx_vhosts_enabled_dir: "{{ nginx_config_dir ~ '/' ~ ('sites-enabled' if ansible_os_family|lower == 'debian' else
-                                                        'conf.d' if ansible_os_family|lower in ['redhat','alpine']) }}"
-nginx_vhosts_managed_file_name: vhosts.conf
-nginx_vhosts_default_file_name: "{{ 'default' if ansible_os_family|lower == 'debian' else
-                                    'default.conf' if ansible_os_family|lower == 'alpine' else
-                                    '' }}"
-
-nginx_websites_root_dir: "{{ '/var/www' if ansible_os_family|lower == 'debian' else
-                             '/srv/www' if ansible_os_family|lower in ['redhat','alpine'] }}"

@@ -1,45 +1,53 @@
 ---
-# file: tasks/04-configure_vhosts.yml
 
-- name: "04.1.1 - get unique list of port nginx is configured to listen on"
-  set_fact:
-    cacheable: False
-    unique_nginx_listeners: "{{ (nginx_vhosts|selectattr('server_names', 'defined')|selectattr('listen', 'defined')|rejectattr('listen', 'search', 'default_server')|list)|map(attribute='listen')|map('regex_replace', '^([0-9]+)+(.*)$', '\\1')|list|unique }}"
-  check_mode: False
-
-- name: "04.1.2 - template vhosts config (if any vhosts are configured)"
+- name: "04.1 - template vhosts configs"
   template:
-    src: nginx.vhosts.j2
-    dest: "{{ nginx_vhosts_conf_dir }}/{{ nginx_vhosts_managed_file_name }}"
-    backup: True
-  become: True
+    src: nginx.vhost.j2
+    dest: "{{ __nginx_vhosts_conf_dir }}/{{ item.name }}"
+  become: yes
   notify:
-    - test-nginx-config
-    - reload-nginx
+    - nginx-test-config
+    - nginx-reload-service
+  loop: "{{ nginx_vhosts|flatten(1) }}"
 
-- name: "04.1.3 - create symlink to the managed vhosts config"
+- name: "04.2 - create symlink to enable vhosts"
   file:
-    src: "{{ nginx_vhosts_conf_dir }}/{{ nginx_vhosts_managed_file_name }}"
-    dest: "{{ nginx_vhosts_enabled_dir }}/{{ nginx_vhosts_managed_file_name }}"
+    src: "{{ __nginx_vhosts_conf_dir }}/{{ item.name }}"
+    dest: "{{ __nginx_vhosts_enabled_dir }}/{{ item.name }}"
     state: link
-    force: True
-  become: True
+    force: yes
+  become: yes
   notify:
-    - test-nginx-config
-    - reload-nginx
+    - nginx-test-config
+    - nginx-reload-service
+  loop: "{{ nginx_vhosts|flatten(1) }}"
   when:
-    - nginx_vhosts_enabled_dir|string != nginx_conf_d_dir|string
+    - __nginx_vhosts_enabled_dir != __nginx_conf_d_dir
 
-- name: "04.2 - make sure default vhosts config is absent"
+- name: "04.3.1 - find all files in the vhosts dir"
+  find:
+    paths:
+      - "{{ __nginx_vhosts_enabled_dir }}"
+    recurse: no
+    hidden: yes
+    patterns: "*"
+    use_regex: no
+    file_type: any
+  register: _vhost_config_files
+  become: yes
+
+- name: "04.3.2 - delete files which are not in the list of enabled"
   file:
-    dest: "{{ nginx_vhosts_enabled_dir }}/{{ nginx_vhosts_default_file_name }}"
+    path: "{{ item.path }}"
     state: absent
-    force: True
-  become: True
+    force: yes
+    recurse: yes
   notify:
-    - test-nginx-config
-    - reload-nginx
+    - nginx-test-config
+    - nginx-reload-service
   when:
-    - nginx_vhosts_default_file_name|string|length > 0
+    - item.path|basename not in nginx_vhosts|map(attribute='name')|list
+  loop: "{{ _vhost_config_files.files }}"
+  become: yes
 
 - meta: flush_handlers

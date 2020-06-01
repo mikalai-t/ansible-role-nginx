@@ -8,10 +8,9 @@
 
 - include_tasks: 04-configure-vhosts.yml
 
-- name: "0.5.(service) - manage state of nginx service"
+- name: "0.5 - make sure nginx is enabled and started"
   service:
-    name: "{{ nginx_service_name }}"
-    state: "{{ 'stopped' if nginx_package_state|string|lower == 'absent' else 'started' }}"
-    enabled: "{{ False if nginx_package_state|string|lower == 'absent' else True }}"
-  become: True
-  ignore_errors: "{{ True if nginx_package_state|string|lower == 'absent' else False }}"
+    name: "{{ __nginx_service_name }}"
+    state: started
+    enabled: yes
+  become: yes

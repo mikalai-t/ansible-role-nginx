@@ -1,42 +1,54 @@
 ---
-# TODO
 
 - name: "03.1.1 - make sure website's directory exists and properly configured"
   file:
-    path: "{{ nginx_websites_root_dir }}"
+    path: "{{ __nginx_websites_root_dir }}"
     state: directory
-    recurse: False
-    owner: "{{ nginx_user }}"
-    group: "{{ nginx_group }}"
+    recurse: no
+    owner: "{{ __nginx_user }}"
+    group: "{{ __nginx_group }}"
     mode: "ug=rwX,o=rX"
-  become: True
+  become: yes
 
 - name: "03.1.2 - make sure required directories are created"
   file:
     dest: "{{ item }}"
     state: directory
+    recurse: yes
+    owner: "{{ __nginx_user }}"
+    group: "{{ __nginx_group }}"
   become: True
-  with_items:
-    - "{{ nginx_ssl_dir|string }}"
-    - "{{ nginx_vhosts_conf_dir|string }}"
-    - "{{ nginx_vhosts_enabled_dir|string }}"
+  loop:
+    - "{{ __nginx_config_dir }}"
+    - "{{ __nginx_conf_d_dir }}"
+    - "{{ __nginx_ssl_dir }}"
+    - "{{ __nginx_vhosts_conf_dir }}"
+    - "{{ __nginx_vhosts_enabled_dir }}"
 
-- name: "03.3 - generate dh-group only if it does not exist"
-  shell:
-    "openssl dhparam -out {{ nginx_ssl_dhparam_file|string }} {{ nginx_ssl_dhparam_size|string }}"
-  become: True
-  args:
-    creates: "{{ nginx_ssl_dhparam_file|string }}"
-  async: "{{ 900 if nginx_ssl_dhparam_size|int < 4096 else 7200 }}"
+- name: "03.3.1 - make sure Diffie-Hellman Parameters file is generated"
+  openssl_dhparam:
+    path: "{{ __nginx_ssl_dhparam_file }}"
+    size: "{{ __nginx_ssl_dhparam_size }}"
+  become: yes
+  async: "{{ 900 if __nginx_ssl_dhparam_size|int < 4096 else 7200 }}"
   poll: 3
 
-- name: "03.4 - template nginx config"
+- name: "03.3.2 - place additional certificate files into SSL sub-dir"
+  copy:
+    dest: "{{ __nginx_ssl_dir }}/{{ item.name }}"
+    content: "{{ item.content }}"
+  become: yes
+  loop: "{{ nginx_certificates|flatten(1) }}"
+
+- name: "03.4 - template nginx server config"
   template:
     src: nginx.conf.j2
-    dest: "{{ nginx_config_file }}"
-    backup: True
-    mode: "0600"
-  become: True
+    dest: "{{ __nginx_config_file }}"
+    backup: yes
+    mode: "ug=rwX,o-rwx"
+  become: yes
   notify:
-    - test-nginx-config
-    - reload-nginx
+    - nginx-test-config
+    - nginx-reload-service
+
+- meta: flush_handlers

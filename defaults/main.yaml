@@ -2,6 +2,14 @@
 
 nginx_version: "1.18.0"
 
+# List of additional certificates that must be configured in the SSL directory
+#   - name: ca.crt
+#     content: |
+#       --- BEGIN CERTIFICATE ---
+#       AAAxxxBBBccc1234567890==
+#       ...
+nginx_certificates: []
+
 # Example virtual host definition:
 # - name(must be unique): "example"
 #   vhost_config: |

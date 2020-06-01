@@ -1,8 +1,8 @@
 ---
 
-- name: "02.1 - make sure all nginx dependencies are installed"
+- name: "02.1 - make sure all prerequisite packages are installed"
   apt:
-    name: "{{ nginx_prerequisites|select()|list }}"
+    name: "{{ __nginx_prerequisites|select()|list }}"
     state: latest
   become: yes
 
@@ -26,7 +26,7 @@
 
 - name: "02.4.1 - check if new nginx version is available"
   shell:
-    cmd: "apt-cache policy nginx 2>&1 | sed -r -n 's/.*(Candidate\\:\\ )([0-9]{1}\\.[0-9]{1,2}\\.[0-9]{1,2}).*/\\2/p'"
+    cmd: "apt-cache policy nginx 2>&1"
   args:
     warn: no
   environment:
@@ -43,7 +43,7 @@
       _get_latest_available_nginx_version.stdout|regex_replace('^.*(Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})).*$', '\\2')
         if (_get_latest_available_nginx_version is defined and
               _get_latest_available_nginx_version.stdout is defined and
-                _get_latest_available_nginx_version.stdout|regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})')|bool)
+                _get_latest_available_nginx_version.stdout|regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})', multiline=True, ignorecase=True)|bool)
         else '0.0.0'
     }}"
 
