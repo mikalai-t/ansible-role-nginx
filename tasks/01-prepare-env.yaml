@@ -9,8 +9,10 @@
   environment:
     DEBIAN_FRONTEND: noninteractive
   register: _get_current_nginx_version
+  ignore_errors: yes
   changed_when: no
   check_mode: no
+
 
 - name: "01.1.2 - parse output"
   set_fact:

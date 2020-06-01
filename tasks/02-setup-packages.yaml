@@ -34,6 +34,7 @@
     LC_ALL: "C"
   become: yes
   register: _get_latest_available_nginx_version
+  ignore_errors: yes
   changed_when: no
   check_mode: no
 
