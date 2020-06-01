@@ -38,6 +38,8 @@
     dest: "{{ __nginx_ssl_dir }}/{{ item.name }}"
     content: "{{ item.content }}"
   become: yes
+  loop_control:
+    lable: "{{ __nginx_ssl_dir }}/{{ item.name }}"
   loop: "{{ nginx_certificates|flatten(1) }}"
 
 - name: "03.4 - template nginx server config"

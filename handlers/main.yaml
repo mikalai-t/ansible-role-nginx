@@ -13,17 +13,11 @@
 
 - name: "nginx-test-config"
   shell:
-    "nginx -t -c {{ nginx_config_file }}"
+    "nginx -t -c {{ __nginx_config_file }}"
   become: yes
 
 - name: "nginx-reload-service"
   service:
-    name: "{{ nginx_service_name }}"
+    name: "{{ __nginx_service_name }}"
     state: reloaded
-  become: yes
-
-- name: "nginx-restart-service"
-  service:
-    name: "{{ nginx_service_name }}"
-    state: restarted
   become: yes
