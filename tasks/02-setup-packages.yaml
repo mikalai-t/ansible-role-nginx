@@ -75,6 +75,6 @@
 
 - name: "02.6 - make sure nginx package is installed"
   apt:
-    name: "nginx{{ ('=' ~ nginx_version) if nginx_version|lower != 'latest' else '' }}"
+    name: "nginx{{ ('=' ~ nginx_version ~ '*') if nginx_version|lower != 'latest' else '' }}"
     state: "{{ 'present' if nginx_version|lower != 'latest' else 'latest' }}"
   become: yes
