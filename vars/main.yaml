@@ -8,11 +8,12 @@ nginx_prerequisites:
   - ca-certificates
   - ssl-cert
 
-nginx_gpg_key_url: https://nginx.org/keys/nginx_signing.key
-nginx_gpg_key_id: 573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62
-nginx_apt_repo: "deb http://nginx.org/packages/{{ ansible_distribution|lower }} {{ ansible_lsb['codename']|default(ansible_distribution_release)|lower }} nginx"
+__nginx_gpg_key_url: https://nginx.org/keys/nginx_signing.key
+__nginx_gpg_key_id: 573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62
+__nginx_apt_repo: "deb http://nginx.org/packages/{{ ansible_distribution|lower }} {{ ansible_lsb['codename']|default(ansible_distribution_release)|lower }} nginx"
 
-nginx_service_name: nginx
+__nginx_package_name: nginx
+__nginx_service_name: nginx
 
 nginx_user: www-data
 nginx_group: www-data
@@ -29,7 +30,8 @@ nginx_conf_d_dir: "{{ nginx_config_dir }}/conf.d"
 nginx_ssl_dir: "{{ nginx_config_dir }}/ssl"
 
 # Specifies a file with DH parameters for DHE ciphers.
-nginx_ssl_dhparam_file: "{{ nginx_ssl_dir }}/dhparam{{ nginx_ssl_dhparam_size }}.pem"
+__nginx_ssl_dhparam_size: 2048
+__nginx_ssl_dhparam_file: "{{ nginx_ssl_dir }}/dhparam{{ __nginx_ssl_dhparam_size }}.pem"
 
 nginx_vhosts_conf_dir: "{{ nginx_config_dir ~ '/' ~ ('sites-available' if ansible_os_family|lower == 'debian' else
                                                      'conf.d' if ansible_os_family|lower in ['redhat','alpine']) }}"

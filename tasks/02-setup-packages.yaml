@@ -1,0 +1,79 @@
+---
+
+- name: "02.1 - make sure all nginx dependencies are installed"
+  apt:
+    name: "{{ nginx_prerequisites|select()|list }}"
+    state: latest
+  become: yes
+
+- name: "02.2 - setup gpg-key"
+  apt_key:
+    url: "{{ __nginx_gpg_key_url }}"
+    id: "{{ __nginx_gpg_key_id }}"
+    state: present
+  become: yes
+
+- name: "02.3 - setup nginx official apt repository"
+  apt_repository:
+    repo: "{{ __nginx_apt_repo }}"
+    state: present
+    update_cache: no
+  become: yes
+  notify:
+    - nginx-update-apt-cache
+
+- meta: flush_handlers
+
+- name: "02.4.1 - check if new nginx version is available"
+  shell:
+    cmd: "apt-cache policy nginx 2>&1 | sed -r -n 's/.*(Candidate\\:\\ )([0-9]{1}\\.[0-9]{1,2}\\.[0-9]{1,2}).*/\\2/p'"
+  args:
+    warn: no
+  environment:
+    # to force application to use the default language for output
+    LC_ALL: "C"
+  become: yes
+  register: _get_latest_available_nginx_version
+  changed_when: no
+  check_mode: no
+
+- name: "02.4.2 - parse output"
+  set_fact:
+    _latest_nginx_version: "{{
+      _get_latest_available_nginx_version.stdout|regex_replace('^.*(Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})).*$', '\\2')
+        if (_get_latest_available_nginx_version is defined and
+              _get_latest_available_nginx_version.stdout is defined and
+                _get_latest_available_nginx_version.stdout|regex_search('Candidate:\\s*(([0-9]{1,2}\\.){2}[0-9]{1,2})')|bool)
+        else '0.0.0'
+    }}"
+
+- name: "debug - the latest available nginx version"
+  debug:
+    var: _latest_nginx_version
+
+- block:
+  - name: "02.5.1 - try to stop nginx service (before re-installing)"
+    service:
+      name: "{{ __nginx_service_name }}"
+      state: stopped
+    become: yes
+    ignore_errors: yes
+  - name: "02.5.2 - remove previous nginx packages (before new re-installing)"
+    apt:
+      name:
+        - nginx-common
+        - nginx-core
+        - nginx
+      state: absent
+      purge: yes
+    become: yes
+  # block condition
+  when:
+    - (nginx_version|lower != 'latest' and _current_nginx_version is version_compare(nginx_version, '!=')) or
+      (nginx_version|lower == 'latest' and _current_nginx_version is version_compare(_latest_nginx_version, '<'))
+
+- name: "02.6 - make sure nginx package is installed"
+  apt:
+    name: "nginx{{ ('=' ~ nginx_version) if nginx_version|lower != 'latest' else '' }}"
+    state: "{{ 'present' if nginx_version|lower != 'latest' else 'latest' }}"
+  become: yes

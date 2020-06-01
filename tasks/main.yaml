@@ -1,16 +1,12 @@
 ---
 
-- include_tasks: 01-prepare_env.yml
+- include_tasks: 01-prepare-env.yml
 
-- include_tasks: "02-setup_{{ ansible_os_family|lower }}.yml"
+- include_tasks: 02-setup-packages.yml
 
-- block:
-  - include_tasks: 03-configure_webserver.yml
+- include_tasks: 03-configure-server.yml
 
-  - include_tasks: 04-configure_vhosts.yml
-  # block condition
-  when:
-    - nginx_package_state|string|lower != 'absent'
+- include_tasks: 04-configure-vhosts.yml
 
 - name: "0.5.(service) - manage state of nginx service"
   service:

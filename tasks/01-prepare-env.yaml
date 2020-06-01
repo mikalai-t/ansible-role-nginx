@@ -1,0 +1,27 @@
+---
+
+- name: "01.1.1 - get current nginx version"
+  shell:
+    cmd: "nginx -v 2>&1"
+  args:
+    warn: no
+  become: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  register: _get_current_nginx_version
+  changed_when: no
+  check_mode: no
+
+- name: "01.1.2 - parse output"
+  set_fact:
+    _current_nginx_version: "{{
+      _get_current_nginx_version.stdout|regex_replace('^.*nginx.*(([0-9]{1,2}\\.){2}[0-9]{1,2}).*$', '\\1')
+        if (_get_current_nginx_version is defined and
+              _get_current_nginx_version.stdout is defined and
+                _get_current_nginx_version.stdout|regex_search('([0-9]{1,2}\\.){2}[0-9]{1,2}', multiline=True, ignorecase=True)|bool)
+        else '0.0.0'
+    }}"
+
+- name: "debug - currently installed nginx version"
+  debug:
+    var: _current_nginx_version

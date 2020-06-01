@@ -1,5 +1,5 @@
 ---
-# file: tasks/03-configure_webserver.yml
+# TODO
 
 - name: "03.1.1 - make sure website's directory exists and properly configured"
   file:
